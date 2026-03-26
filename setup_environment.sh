@@ -142,19 +142,23 @@ install_nvm() {
 
 # Install Node.js and npm
 install_node_and_npm() {
-    if command -v npm >/dev/null 2>&1; then
-        ok "npm is already installed"
+    # Ensure NVM is available as a shell function (it is sourced, not a binary)
+    if ! type nvm >/dev/null 2>&1; then
+        error "NVM is not loaded. Please check the installation."
+        exit 1
+    fi
+
+    # Install LTS if node is not present; nvm install is idempotent for the same alias
+    if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
+        ok "Node.js already installed: $(node -v)"
+        ok "npm already installed: $(npm -v)"
+        # Still ensure the LTS alias is active in this session
+        nvm use --lts >/dev/null 2>&1 || true
     else
-        info "Installing Node.js and npm using NVM..."
-
-        if ! command -v nvm >/dev/null 2>&1; then
-            error "NVM is not installed. Please check the installation."
-            exit 1
-        fi
-
-        # Install the latest LTS version of Node.js
+        info "Installing Node.js LTS via NVM..."
         nvm install --lts
         nvm use --lts
+        nvm alias default 'lts/*'
 
         # Verify installation
         if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
@@ -170,28 +174,34 @@ install_node_and_npm() {
 
 # Install the latest version of Appium
 install_appium() {
-    info "Installing the latest version of Appium..."
-    if command -v npm >/dev/null 2>&1; then
+    if command -v appium >/dev/null 2>&1; then
+        ok "Appium already installed: $(appium --version)"
+    else
+        info "Installing the latest version of Appium..."
+        if ! command -v npm >/dev/null 2>&1; then
+            error "npm is not installed. Appium installation failed."
+            exit 1
+        fi
         npm install -g appium
-    else
-        error "npm is not installed. Appium installation failed."
-        exit 1
+
+        if ! command -v appium >/dev/null 2>&1; then
+            error "Appium was not installed properly."
+            exit 1
+        fi
+        ok "Appium installed successfully. Version: $(appium --version)"
     fi
 
-    # Verify Appium installation
-    if ! command -v appium >/dev/null 2>&1; then
-        error "Appium was not installed properly."
-        exit 1
-    fi
-    ok "Appium installed successfully. Version: $(appium --version)"
-
-    # Install UIAutomator2 driver
-    info "Installing UIAutomator2 driver..."
-    if appium driver install uiautomator2; then
-        ok "UIAutomator2 driver installed successfully"
+    # Install UIAutomator2 driver (idempotent check)
+    if appium driver list --installed 2>/dev/null | grep -q "uiautomator2"; then
+        ok "UIAutomator2 driver already installed"
     else
-        error "Failed to install UIAutomator2 driver"
-        exit 1
+        info "Installing UIAutomator2 driver..."
+        if appium driver install uiautomator2; then
+            ok "UIAutomator2 driver installed successfully"
+        else
+            error "Failed to install UIAutomator2 driver"
+            exit 1
+        fi
     fi
 }
 
@@ -270,38 +280,51 @@ install_maven_and_java() {
     # Ensure SDKMAN is loaded
     [ -s "$HOME/.sdkman/bin/sdkman-init.sh" ] && . "$HOME/.sdkman/bin/sdkman-init.sh"
 
-    if command -v java >/dev/null 2>&1; then
-        ok "Java is already installed"
+    # Check specifically for Java 23 (not just any java)
+    if java -version 2>&1 | grep -q "version \"23"; then
+        ok "Java 23 already installed: $(java -version 2>&1 | head -n 1)"
     else
-        info "Installing Java 23 via SDKMAN..."
-        # Install Java 23
-        sdk install java 23.0.2-librca || ok "Java 23 is already installed"
+        if command -v java >/dev/null 2>&1; then
+            warn "A different Java version is installed ($(java -version 2>&1 | head -n 1)). Installing Java 23 via SDKMAN..."
+        else
+            info "Installing Java 23 via SDKMAN..."
+        fi
 
-        # Set Java 23 as the default version
-        sdk default java "$(ls -A1 "$SDKMAN_DIR/candidates/java" | head -n 1)"
+        # Install Java 23 (sdk install is idempotent — skips if already present)
+        sdk install java 23.0.2-librca || true
+
+        # Set Java 23 as the default version explicitly by name
+        sdk default java 23.0.2-librca
+
+        # Reload SDKMAN so java points to new default
+        [ -s "$HOME/.sdkman/bin/sdkman-init.sh" ] && . "$HOME/.sdkman/bin/sdkman-init.sh"
     fi
 
     detect_shell_config
     info "Using shell configuration file: $SHELL_CONFIG_FILE"
 
-    if [ -z "$(java -version 2>&1 | grep '23')" ]; then
-        error "Java 23 was not installed or set properly or you need to source your $SHELL_CONFIG_FILE"
+    if ! java -version 2>&1 | grep -q "version \"23"; then
+        error "Java 23 was not installed or set properly. Try sourcing $SHELL_CONFIG_FILE and re-running."
         exit 1
     fi
 
     ok "Java installed successfully: $(java -version 2>&1 | head -n 1)"
 
-    if command -v mvn >/dev/null 2>&1;then
-        ok "Maven already installed"
+    # Check for Maven — accept any installed version (Maven is backward-compatible)
+    if command -v mvn >/dev/null 2>&1; then
+        ok "Maven already installed: $(mvn -v 2>/dev/null | head -n 1)"
     else
         info "Installing Maven 3.9.5 via SDKMAN..."
-        # Install Maven 3.9.5
-        sdk install maven 3.9.5 || ok "Maven 3.9.5 is already installed"
-        sdk default maven "$(ls -A1 "$SDKMAN_DIR/candidates/maven" | head -n 1)"
+        # sdk install is idempotent — skips if already present
+        sdk install maven 3.9.5 || true
+        sdk default maven 3.9.5
+
+        # Reload SDKMAN so mvn is on PATH
+        [ -s "$HOME/.sdkman/bin/sdkman-init.sh" ] && . "$HOME/.sdkman/bin/sdkman-init.sh"
     fi
 
     if ! command -v mvn >/dev/null 2>&1; then
-        error "Maven 3.9.5 was not installed properly."
+        error "Maven was not installed properly."
         exit 1
     fi
 
@@ -311,6 +334,15 @@ install_maven_and_java() {
 # Download and extract Android SDK
 download_and_extract_sdk() {
     info "Downloading Android SDK..."
+
+    # Use a stable absolute path instead of $(pwd) to make the script location-independent
+    ANDROID_SDK_ROOT_DIR="$HOME/android_sdk"
+
+    # Idempotent: skip download if SDK directory already exists
+    if [[ -d "$ANDROID_SDK_ROOT_DIR/cmdline-tools/latest" ]]; then
+        ok "Android SDK command-line tools already present at $ANDROID_SDK_ROOT_DIR. Skipping download."
+        return 0
+    fi
 
     # Fetch the latest version from Android's repository XML
     info "Fetching latest commandlinetools version..."
@@ -324,33 +356,30 @@ download_and_extract_sdk() {
 
     info "Using version: $LATEST_VERSION"
     URL="https://dl.google.com/android/repository/$LATEST_VERSION"
-    OUTPUT="$LATEST_VERSION"
+    OUTPUT="/tmp/$LATEST_VERSION"
 
-    ANDROID_SDK_ROOT_DIR="$(pwd)/android_sdk"
-
-    if [[ -d "$ANDROID_SDK_ROOT_DIR" ]]; then
-        error "Directory $ANDROID_SDK_ROOT_DIR already exists. Please delete and run script again."
-        exit 1
+    info "Downloading Android SDK (~160MB, please wait)..."
+    if wget --progress=dot:mega -O "$OUTPUT" "$URL" 2>&1 | grep --line-buffered -E "[0-9]+%" | sed -u 's/.* \([0-9]\+%\).*/  [\1]/' | grep -E "(25%|50%|75%|100%)"; then
+        ok "Download complete"
     else
-        info "Downloading Android SDK (~160MB, please wait)..."
-        if wget --progress=dot:mega -O "$OUTPUT" "$URL" 2>&1 | grep --line-buffered -E "[0-9]+%" | sed -u 's/.* \([0-9]\+%\).*/  [\1]/' | grep -E "(25%|50%|75%|100%)"; then
-            ok "Download complete"
-        else
-            error "Download failed"
-            exit 1
-        fi
-        info "Unzipping downloaded package..."
-        mkdir -p "$ANDROID_SDK_ROOT_DIR/cmdline-tools"
-        unzip -q "$OUTPUT" -d "$ANDROID_SDK_ROOT_DIR/cmdline-tools"
-        # Restructure to proper SDK layout: cmdline-tools/latest/
-        mv "$ANDROID_SDK_ROOT_DIR/cmdline-tools/cmdline-tools" "$ANDROID_SDK_ROOT_DIR/cmdline-tools/latest"
-        rm "$OUTPUT" # Clean up the downloaded ZIP file after unzipping
+        error "Download failed"
+        exit 1
     fi
+
+    info "Unzipping downloaded package..."
+    mkdir -p "$ANDROID_SDK_ROOT_DIR/cmdline-tools"
+    unzip -q "$OUTPUT" -d "$ANDROID_SDK_ROOT_DIR/cmdline-tools"
+    # Restructure to proper SDK layout: cmdline-tools/latest/
+    mv "$ANDROID_SDK_ROOT_DIR/cmdline-tools/cmdline-tools" "$ANDROID_SDK_ROOT_DIR/cmdline-tools/latest"
+    rm "$OUTPUT" # Clean up the downloaded ZIP file after unzipping
 }
 
 # Configure environment variables
 configure_android_environment() {
     info "Configuring Android environment variables..."
+
+    # ANDROID_SDK_ROOT_DIR must match the value set in download_and_extract_sdk
+    ANDROID_SDK_ROOT_DIR="$HOME/android_sdk"
 
     detect_shell_config
     info "Using shell configuration file: $SHELL_CONFIG_FILE"
@@ -359,6 +388,12 @@ configure_android_environment() {
         warn "ANDROID_SDK_ROOT is already configured in $SHELL_CONFIG_FILE. Skipping addition."
     else
         info "Adding ANDROID_SDK_ROOT and PATH modifications to $SHELL_CONFIG_FILE"
+
+        # Expand all paths at write time so the shell config is self-contained
+        # and does not depend on variables being defined in a particular order
+        local CMDLINE_TOOLS_PATH="$ANDROID_SDK_ROOT_DIR/cmdline-tools/latest/bin"
+        local PLATFORM_TOOLS_PATH="$ANDROID_SDK_ROOT_DIR/platform-tools"
+        local BUILD_TOOLS_PATH="$ANDROID_SDK_ROOT_DIR/build-tools"
 
         # Find the line number of the last occurrence of 'export PATH='
         last_path_line=$(awk '/export PATH=/ { last_match=NR } END { print last_match }' "$SHELL_CONFIG_FILE")
@@ -374,16 +409,22 @@ configure_android_environment() {
         fi
 
         # Insert environment variables above the determined line
-        awk -v insert_line="$last_path_line" -v current_date="$(date '+%Y-%m-%d %H:%M:%S')" -v sdk_root="$ANDROID_SDK_ROOT_DIR" '
+        # All paths are fully expanded — no chained variable references
+        awk -v insert_line="$last_path_line" \
+            -v current_date="$(date '+%Y-%m-%d %H:%M:%S')" \
+            -v sdk_root="$ANDROID_SDK_ROOT_DIR" \
+            -v cmdline_tools="$CMDLINE_TOOLS_PATH" \
+            -v platform_tools="$PLATFORM_TOOLS_PATH" \
+            -v build_tools="$BUILD_TOOLS_PATH" '
         { print }
         NR == insert_line {
             print "##### Android SDK Environment Variables (added on " current_date ") #####"
             print "export ANDROID_SDK_ROOT=\"" sdk_root "\""
-            print "export ANDROID_CMDLINE_TOOLS=$ANDROID_SDK_ROOT/cmdline-tools/latest"
-            print "export ANDROID_PLATFORM_TOOLS=$ANDROID_SDK_ROOT/platform-tools"
-            print "# Build tools path uses wildcard to automatically find installed version"
-            print "export ANDROID_BUILD_TOOLS=$(ls -d $ANDROID_SDK_ROOT/build-tools/* 2>/dev/null | head -1)"
-            print "export PATH=$ANDROID_CMDLINE_TOOLS/bin:$ANDROID_PLATFORM_TOOLS:$ANDROID_BUILD_TOOLS:$PATH"
+            print "export ANDROID_CMDLINE_TOOLS=\"" cmdline_tools "\""
+            print "export ANDROID_PLATFORM_TOOLS=\"" platform_tools "\""
+            print "# Build tools path resolves the installed version at shell startup"
+            print "export ANDROID_BUILD_TOOLS=\"$(ls -d " build_tools "/* 2>/dev/null | sort -V | tail -1)\""
+            print "export PATH=\"" cmdline_tools ":" platform_tools ":$ANDROID_BUILD_TOOLS:$PATH\""
         }' "$SHELL_CONFIG_FILE" > "$SHELL_CONFIG_FILE.tmp" && mv "$SHELL_CONFIG_FILE.tmp" "$SHELL_CONFIG_FILE"
 
         ok "ANDROID_SDK_ROOT and PATH modifications added to $SHELL_CONFIG_FILE"
@@ -394,6 +435,8 @@ configure_android_environment() {
 install_sdk_components() {
     info "Installing Android SDK components..."
 
+    # Must match the path used in download_and_extract_sdk and configure_android_environment
+    ANDROID_SDK_ROOT_DIR="$HOME/android_sdk"
     ANDROID_CMDLINE_TOOLS="$ANDROID_SDK_ROOT_DIR/cmdline-tools/latest"
 
     # Ensure SDKMAN is loaded to access Java
