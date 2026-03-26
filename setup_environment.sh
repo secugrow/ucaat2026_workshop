@@ -233,9 +233,11 @@ configure_appium() {
 
 # Install SDKMAN
 install_sdkman() {
+    # SDKMAN's init script uses unbound variables internally — suspend nounset around all sdk calls
+    set +u
+
     if [ -d "$HOME/.sdkman" ]; then
         ok "SDKMAN is already installed. Skipping installation..."
-        # Load SDKMAN in the current shell session
         export SDKMAN_DIR="$HOME/.sdkman"
         [ -s "$SDKMAN_DIR/bin/sdkman-init.sh" ] && \. "$SDKMAN_DIR/bin/sdkman-init.sh"
     else
@@ -249,6 +251,7 @@ install_sdkman() {
                sudo yum install -y zip unzip
             else
                error "Unsupported package manager. Please install zip and unzip manually."
+               set -u
                exit 1
             fi
         fi
@@ -261,26 +264,30 @@ install_sdkman() {
             wget -qO- "$SDKMAN_INSTALL_URL" | bash
         else
             error "curl or wget is required to download SDKMAN."
+            set -u
             exit 1
         fi
 
-        # Load SDKMAN in the current shell session
         export SDKMAN_DIR="$HOME/.sdkman"
         [ -s "$SDKMAN_DIR/bin/sdkman-init.sh" ] && \. "$SDKMAN_DIR/bin/sdkman-init.sh"
 
-        # Verify installation
         if ! command -v sdk >/dev/null 2>&1; then
             error "SDKMAN was not installed properly."
+            set -u
             exit 1
         fi
         ok "SDKMAN installed successfully"
     fi
+
+    set -u
 }
 
 # Install Maven and Java using SDKMAN
 install_maven_and_java() {
     info "Ensuring SDKMAN is loaded..."
-    # Ensure SDKMAN is loaded
+
+    # SDKMAN's init script and sdk commands use unbound variables — suspend nounset throughout
+    set +u
     [ -s "$HOME/.sdkman/bin/sdkman-init.sh" ] && . "$HOME/.sdkman/bin/sdkman-init.sh"
 
     # Check specifically for Java 23 (not just any java)
@@ -293,36 +300,32 @@ install_maven_and_java() {
             info "Installing Java 23 via SDKMAN..."
         fi
 
-        # Install Java 23 (sdk install is idempotent — skips if already present)
         sdk install java 23.0.2-librca || true
-
-        # Set Java 23 as the default version explicitly by name
         sdk default java 23.0.2-librca
 
-        # Reload SDKMAN so java points to new default
+        # Reload so java points to new default
         [ -s "$HOME/.sdkman/bin/sdkman-init.sh" ] && . "$HOME/.sdkman/bin/sdkman-init.sh"
     fi
 
+    set -u
     detect_shell_config
     info "Using shell configuration file: $SHELL_CONFIG_FILE"
+    set +u
 
     if ! java -version 2>&1 | grep -q "version \"23"; then
         error "Java 23 was not installed or set properly. Try sourcing $SHELL_CONFIG_FILE and re-running."
+        set -u
         exit 1
     fi
 
     ok "Java installed successfully: $(java -version 2>&1 | head -n 1)"
 
-    # Check for Maven — accept any installed version (Maven is backward-compatible)
     if command -v mvn >/dev/null 2>&1; then
         ok "Maven already installed: $(mvn -v 2>/dev/null | head -n 1)"
     else
         info "Installing Maven 3.9.5 via SDKMAN..."
-        # sdk install is idempotent — skips if already present
         sdk install maven 3.9.5 || true
         sdk default maven 3.9.5
-
-        # Reload SDKMAN so mvn is on PATH
         [ -s "$HOME/.sdkman/bin/sdkman-init.sh" ] && . "$HOME/.sdkman/bin/sdkman-init.sh"
     fi
 
@@ -445,7 +448,9 @@ install_sdk_components() {
     # Ensure SDKMAN is loaded to access Java
     if [ -d "$HOME/.sdkman" ]; then
         export SDKMAN_DIR="$HOME/.sdkman"
+        set +u
         [ -s "$SDKMAN_DIR/bin/sdkman-init.sh" ] && source "$SDKMAN_DIR/bin/sdkman-init.sh"
+        set -u
     fi
 
     # Verify Java is available
