@@ -6,7 +6,7 @@
     "plugin": {
       "devtools": {}
     },
-    "allow-insecure": ["chromedriver_autodownload", "adb_shell"],
+    "allow-insecure": ["*:chromedriver_autodownload", "*:adb_shell"],
     "relaxed-security": true,
     "driver": {
       "uiautomator2": {
