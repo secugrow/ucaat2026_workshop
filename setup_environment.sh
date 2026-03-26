@@ -46,9 +46,18 @@ print_multiline() {
 
 # Detect shell configuration file
 detect_shell_config() {
-    CURRENT_SHELL=$(ps -p "$(ps -o ppid= -p $$)" -o comm= | sed 's/^-//')
+    # In non-interactive environments (e.g. Docker RUN), ps-based shell detection
+    # fails because there is no parent terminal process. Use $SHELL if set,
+    # otherwise fall back to .bashrc which is always safe on Linux.
+    local detected_shell
+    if [[ -n "${SHELL:-}" ]]; then
+        detected_shell=$(basename "$SHELL")
+    else
+        # Try ps only if we have a real TTY; ignore errors silently
+        detected_shell=$(ps -p "$(ps -o ppid= -p $$ 2>/dev/null | tr -d ' ')" -o comm= 2>/dev/null | sed 's/^-//' || echo "bash")
+    fi
 
-    case "$CURRENT_SHELL" in
+    case "$detected_shell" in
         zsh)
             SHELL_CONFIG_FILE="$HOME/.zshrc"
             ;;
