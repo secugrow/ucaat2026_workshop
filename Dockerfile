@@ -37,9 +37,9 @@ USER appiumuser
 # Run the setup script during build time
 RUN ./setup_environment.sh
 
-# Create a stable symlink for the NVM-managed Node.js bin directory so the
-# PATH below doesn't need a hardcoded version string (e.g. v24.14.1)
-RUN ln -s "$(. ~/.nvm/nvm.sh && nvm which default | xargs dirname)" \
+# Create a stable symlink for the NVM-managed Node.js bin directory.
+# Finds the actual installed version directory rather than relying on NVM aliases.
+RUN ln -s "$(ls -d /home/appiumuser/.nvm/versions/node/*/bin | head -1)" \
          /home/appiumuser/.nvm/current-bin
 
 # Set environment variables so tools are available in all contexts
