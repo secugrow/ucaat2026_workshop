@@ -37,11 +37,18 @@ USER appiumuser
 # Run the setup script during build time
 RUN ./setup_environment.sh
 
-# Set environment variables for interactive shells
+# Create a stable symlink for the NVM-managed Node.js bin directory so the
+# PATH below doesn't need a hardcoded version string (e.g. v24.14.1)
+RUN ln -s "$(. ~/.nvm/nvm.sh && nvm which current | xargs dirname)" \
+         /home/appiumuser/.nvm/current-bin
+
+# Set environment variables so tools are available in all contexts
+# (docker exec, CMD, etc.) without needing to source .bashrc
 ENV NVM_DIR=/home/appiumuser/.nvm \
     SDKMAN_DIR=/home/appiumuser/.sdkman \
     ANDROID_SDK_ROOT=/home/appiumuser/android_sdk \
-    TERM=xterm
+    TERM=xterm \
+    PATH=/home/appiumuser/.nvm/current-bin:/home/appiumuser/android_sdk/platform-tools:/home/appiumuser/android_sdk/cmdline-tools/latest/bin:$PATH
 
 # start appium
 CMD ["./appium/start-appium.sh"]
