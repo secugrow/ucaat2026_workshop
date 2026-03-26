@@ -3,7 +3,7 @@
 # Set TERM for Docker environment
 export TERM=${TERM:-xterm}
 
-# Colors with tput fallback
+# Colors with tput fallback (same pattern as setup_environment.sh)
 if command -v tput >/dev/null 2>&1 && tput setaf 1 >/dev/null 2>&1; then
     RED=$(tput setaf 1)
     GREEN=$(tput setaf 2)
@@ -73,8 +73,6 @@ fi
 
 # Config file is copied to ~/.appium/ by setup_environment.sh (configure_appium step).
 # Appium auto-loads it from there — no need to pass --config explicitly.
-# TECH-NOTE:    the old path ($HOME/appium/appium.conf.json) was wrong;
-#               setup_environment.sh copies the config to $HOME/.appium/appium.conf.json.
 CONFIG_FILE="$HOME/.appium/appium.conf.json"
 
 if [ -f "$CONFIG_FILE" ]; then
@@ -84,5 +82,6 @@ if [ -f "$CONFIG_FILE" ]; then
 else
     warn "No Appium configuration file found at $CONFIG_FILE"
     section "Starting Appium server with default parameters..."
-    exec appium --allow-cors --allow-insecure=adb_shell --address 0.0.0.0 --port 4723
+    # Appium 3.x requires wildcard:feature format for --allow-insecure
+    exec appium --allow-cors --allow-insecure='*:adb_shell' --address 0.0.0.0 --port 4723
 fi
