@@ -37,6 +37,25 @@ USER appiumuser
 # Run the setup script during build time
 RUN ./setup_environment.sh
 
+# Print installed component versions so they are visible in docker build output
+RUN bash -c '\
+    source ~/.bashrc && \
+    source ~/.nvm/nvm.sh && \
+    export SDKMAN_DIR="$HOME/.sdkman" && \
+    source ~/.sdkman/bin/sdkman-init.sh && \
+    echo "" && \
+    echo "======================================" && \
+    echo "    Installed Component Versions      " && \
+    echo "======================================" && \
+    echo "Node.js:     $(node -v 2>/dev/null || echo Not available)" && \
+    echo "npm:         $(npm -v 2>/dev/null || echo Not available)" && \
+    echo "Appium:      $(appium --version 2>/dev/null || echo Not available)" && \
+    echo "Java:        $(java -version 2>&1 | head -n 1 || echo Not available)" && \
+    echo "Maven:       $(mvn -v 2>/dev/null | head -n 1 | sed "s/Apache Maven //" || echo Not available)" && \
+    echo "Android SDK: $([ -d /home/appiumuser/android_sdk ] && echo Installed at /home/appiumuser/android_sdk || echo Not available)" && \
+    echo "adb:         $(adb version 2>/dev/null | head -n 1 || echo Not available)" && \
+    echo "======================================"'
+
 # Create a stable symlink for the NVM-managed Node.js bin directory.
 # Finds the actual installed version directory rather than relying on NVM aliases.
 RUN ln -s "$(ls -d /home/appiumuser/.nvm/versions/node/*/bin | head -1)" \
