@@ -10,8 +10,8 @@
     "relaxed-security": true,
     "driver": {
       "uiautomator2": {
-        "chromedriver-executable-dir": "${HOME}/chromedrivers",
-        "chromedriverStorageDir": "${HOME}/chromedrivers"
+        "chromedriver-executable-dir": "/home/appiumuser/secugrow/chromedrivers",
+        "chromedriverStorageDir": "/home/appiumuser/secugrow/chromedrivers"
       }
     }
   }
