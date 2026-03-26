@@ -468,17 +468,22 @@ install_sdk_components() {
         exit 1
     fi
 
-    # Get latest build-tools version
-    LATEST_BUILD_TOOLS=$(yes | "$ANDROID_CMDLINE_TOOLS/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT_DIR" --list 2>/dev/null | grep "build-tools;" | head -1 | awk '{print $1}')
+    # Get latest build-tools version.
+    # Use --licenses (non-interactive accept) instead of piping yes, which causes
+    # SIGPIPE when head -1 closes the pipe early (exit code 141 under pipefail).
+    # Accept licenses first so sdkmanager never blocks waiting for input.
+    "$ANDROID_CMDLINE_TOOLS/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT_DIR" --licenses </dev/null >/dev/null 2>&1 || true
+
+    LATEST_BUILD_TOOLS=$("$ANDROID_CMDLINE_TOOLS/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT_DIR" --list 2>/dev/null         | grep "build-tools;"         | awk '{print $1}'         | sort -t';' -k2 -V         | tail -1)
 
     if [[ -z "$LATEST_BUILD_TOOLS" ]]; then
-        warn "Could not detect latest build-tools, using fallback version 34.0.0"
-        LATEST_BUILD_TOOLS="build-tools;34.0.0"
+        warn "Could not detect latest build-tools, using fallback version 35.0.0"
+        LATEST_BUILD_TOOLS="build-tools;35.0.0"
     else
         info "Installing latest build-tools: $LATEST_BUILD_TOOLS"
     fi
 
-    yes | "$ANDROID_CMDLINE_TOOLS/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT_DIR" --install "platform-tools" "platforms;android-33" "$LATEST_BUILD_TOOLS"
+    "$ANDROID_CMDLINE_TOOLS/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT_DIR"         --install "platform-tools" "platforms;android-33" "$LATEST_BUILD_TOOLS"
 
     # Export build-tools version for later use
     export ANDROID_BUILD_TOOLS_VERSION=$(echo "$LATEST_BUILD_TOOLS" | cut -d';' -f2)
