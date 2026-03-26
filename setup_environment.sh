@@ -148,28 +148,31 @@ install_node_and_npm() {
         exit 1
     fi
 
-    # Install LTS if node is not present; nvm install is idempotent for the same alias
+    # NVM internal code uses unbound variables which trips set -u.
+    # Suspend nounset around all nvm calls.
+    set +u
+
     if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
         ok "Node.js already installed: $(node -v)"
         ok "npm already installed: $(npm -v)"
-        # Still ensure the LTS alias is active in this session
         nvm use --lts >/dev/null 2>&1 || true
     else
         info "Installing Node.js LTS via NVM..."
         nvm install --lts
         nvm use --lts
         nvm alias default 'lts/*'
-
-        # Verify installation
+        set -u
         if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
             error "Node.js or npm was not installed properly."
             exit 1
         fi
-
         info "Node.js version: $(node -v)"
         info "npm version: $(npm -v)"
         ok "Node.js and npm installed successfully"
+        set +u
     fi
+
+    set -u
 }
 
 # Install the latest version of Appium
