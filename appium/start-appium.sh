@@ -75,13 +75,24 @@ CHROMEDRIVER_DIR="$HOME/.appium/node_modules/appium-uiautomator2-driver/node_mod
 mkdir -p "$CHROMEDRIVER_DIR"
 
 section "Checking Chromedriver..."
-# Wait for adb daemon to initialize and enumerate devices
+# Wait for adb daemon to initialize and enumerate devices.
+# Poll until at least one device appears or timeout is reached.
 adb start-server >/dev/null 2>&1
-sleep 3
-DEVICES=$(adb devices | grep -w device | awk '{print $1}')
+DEVICES=""
+ADB_TIMEOUT=30
+ADB_ELAPSED=0
+ADB_INTERVAL=3
+while [ -z "$DEVICES" ] && [ "$ADB_ELAPSED" -lt "$ADB_TIMEOUT" ]; do
+    DEVICES=$(adb devices | grep -w device | awk '{print $1}')
+    if [ -z "$DEVICES" ]; then
+        info "Waiting for devices... (${ADB_ELAPSED}s / ${ADB_TIMEOUT}s)"
+        sleep "$ADB_INTERVAL"
+        ADB_ELAPSED=$((ADB_ELAPSED + ADB_INTERVAL))
+    fi
+done
 
 if [ -z "$DEVICES" ]; then
-    warn "No devices connected — skipping Chromedriver setup"
+    warn "No devices connected after ${ADB_TIMEOUT}s — skipping Chromedriver setup"
 else
     for SERIAL in $DEVICES; do
         CHROME_VERSION=$(adb -s "$SERIAL" shell dumpsys package com.android.chrome 2>/dev/null \
@@ -113,7 +124,8 @@ else
             | tail -1)
 
         if [ -z "$DOWNLOAD_URL" ]; then
-            warn "No matching Chromedriver found for Chrome $CHROME_VERSION"
+            warn "No matching Chromedriver found for Chrome $CHROME_VERSION on device $SERIAL"
+            warn "Tests on device $SERIAL will likely fail — Chrome version may be too new or too old"
             continue
         fi
 
@@ -125,11 +137,29 @@ else
             mv "$TMPDIR/chromedriver-linux64/chromedriver" "$CHROMEDRIVER_DIR/chromedriver-${MAJOR_VERSION}"
             chmod +x "$CHROMEDRIVER_DIR/chromedriver-${MAJOR_VERSION}"
             rm -rf "$TMPZIP" "$TMPDIR"
-            ok "Chromedriver $CHROME_VERSION installed as chromedriver-${MAJOR_VERSION}"
+            ok "Chromedriver $CHROME_VERSION installed for device $SERIAL"
         else
-            warn "Failed to download Chromedriver for Chrome $CHROME_VERSION"
+            warn "Failed to download Chromedriver for Chrome $CHROME_VERSION on device $SERIAL"
+            warn "Tests on device $SERIAL will likely fail — check internet connectivity"
         fi
     done
+fi
+
+# Print readiness summary before starting Appium
+section "Appium readiness summary"
+if [ -n "$DEVICES" ]; then
+    for SERIAL in $DEVICES; do
+        MAJOR=$(adb -s "$SERIAL" shell dumpsys package com.android.chrome 2>/dev/null             | grep versionName | head -1 | awk -F= '{print $2}' | tr -d '[:space:]' | cut -d. -f1)
+        if [ -n "$MAJOR" ] && ls "$CHROMEDRIVER_DIR"/chromedriver-"$MAJOR"* >/dev/null 2>&1; then
+            ok "Device $SERIAL — Chrome $MAJOR — Chromedriver ready"
+        elif [ -n "$MAJOR" ]; then
+            warn "Device $SERIAL — Chrome $MAJOR — Chromedriver MISSING — tests will fail"
+        else
+            warn "Device $SERIAL — Chrome version unknown — Chromedriver status unknown"
+        fi
+    done
+else
+    warn "No devices connected — connect a device and restart the container"
 fi
 
 # Config file is copied to ~/.appiumrc.json by setup_environment.sh (configure_appium step).
@@ -138,7 +168,7 @@ CONFIG_FILE="$HOME/.appiumrc.json"
 
 if [ -f "$CONFIG_FILE" ]; then
     ok "Appium configuration found at $CONFIG_FILE"
-    section "Starting Appium server (config auto-loaded from ~/.appium/)..."
+    section "Starting Appium server (config auto-loaded from ~/.appiumrc.json)..."
     exec appium --address 0.0.0.0
 else
     warn "No Appium configuration file found at $CONFIG_FILE"

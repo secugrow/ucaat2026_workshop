@@ -87,6 +87,12 @@ SDKMAN → Java 23 → Maven 3.9.5 → Android SDK → SDK Components
 
 It copies the found file to `$HOME/.appiumrc.json`, where Appium auto-discovers it via lilconfig at startup — no `--config` flag needed.
 
+### Chromedriver Setup (Bare Metal)
+
+Chromedriver is handled automatically by Appium on first session. The `.appiumrc.json` config placed in `$HOME` by `setup_environment.sh` enables `relaxed-security` and `uiautomator2:chromedriver_autodownload`, so when the first test session starts Appium detects the Chrome version on the connected device and downloads the matching Chromedriver automatically.
+
+In Docker, `start-appium.sh` pre-downloads the Chromedriver at container startup (before any session is created) so it is ready immediately when tests run.
+
 ---
 
 ## Docker Configuration

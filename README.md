@@ -25,6 +25,8 @@ source ~/.bashrc
 
 Tools are installed to `$HOME` (NVM, SDKMAN, Android SDK). Requires sudo for system packages.
 
+Appium will auto-download the matching Chromedriver on the first test session — no manual setup needed. Make sure USB debugging is enabled on the device before starting tests.
+
 ---
 
 ## Container Management
