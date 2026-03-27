@@ -2,12 +2,8 @@
   "server": {
     "port": 4723,
     "allow-cors": true,
-    "use-plugins": ["devtools"],
-    "plugin": {
-      "devtools": {}
-    },
-    "allow-insecure": ["*:chromedriver_autodownload", "*:adb_shell"],
     "relaxed-security": true,
+    "allow-insecure": ["uiautomator2:chromedriver_autodownload", "uiautomator2:adb_shell"],
     "driver": {
       "uiautomator2": {
         "chromedriver-executable-dir": "/home/appiumuser/secugrow/chromedrivers",

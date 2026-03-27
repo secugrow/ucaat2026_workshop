@@ -221,30 +221,27 @@ install_appium() {
 configure_appium() {
     info "Configuring Appium..."
 
-    APPIUM_CONFIG_DIR="$HOME/.appium"
-    mkdir -p "$APPIUM_CONFIG_DIR"
-
-    # Look for appium.conf.json in the script directory and the appium/ subdirectory
-    # In Docker the layout is: setup_environment.sh and appium/ are siblings under WORKDIR
+    # Look for .appiumrc.json in the script directory and the appium/ subdirectory.
+    # Appium auto-discovers .appiumrc.json in $HOME via lilconfig — no --config flag needed.
+    # In Docker the layout is: setup_environment.sh and appium/ are siblings under WORKDIR.
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    if [ -f "$SCRIPT_DIR/appium.conf.json" ]; then
-        APPIUM_CONF_SRC="$SCRIPT_DIR/appium.conf.json"
-    elif [ -f "$SCRIPT_DIR/appium/appium.conf.json" ]; then
-        APPIUM_CONF_SRC="$SCRIPT_DIR/appium/appium.conf.json"
+    if [ -f "$SCRIPT_DIR/.appiumrc.json" ]; then
+        APPIUM_CONF_SRC="$SCRIPT_DIR/.appiumrc.json"
+    elif [ -f "$SCRIPT_DIR/appium/.appiumrc.json" ]; then
+        APPIUM_CONF_SRC="$SCRIPT_DIR/appium/.appiumrc.json"
     else
         APPIUM_CONF_SRC=""
     fi
 
     if [ -n "$APPIUM_CONF_SRC" ]; then
-        info "Copying $APPIUM_CONF_SRC to $APPIUM_CONFIG_DIR"
-        # cp "$APPIUM_CONF_SRC" "$APPIUM_CONFIG_DIR/appium.conf.json"
+        info "Copying $APPIUM_CONF_SRC to $HOME/.appiumrc.json"
         cp "$APPIUM_CONF_SRC" "$HOME/.appiumrc.json"
 
         CHROMEDRIVER_DIR="$HOME/secugrow/chromedrivers"
         mkdir -p "$CHROMEDRIVER_DIR"
         ok "Created chromedriver storage directory at $CHROMEDRIVER_DIR"
     else
-        warn "No appium.conf.json found in $SCRIPT_DIR or $SCRIPT_DIR/appium/. Skipping Appium configuration."
+        warn "No .appiumrc.json found in $SCRIPT_DIR or $SCRIPT_DIR/appium/. Skipping Appium configuration."
     fi
 }
 
