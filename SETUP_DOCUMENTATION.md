@@ -42,18 +42,14 @@ The workshop environment provides a complete mobile testing stack with the follo
 ### Directory Structure
 
 ```
-workshop_setup/
+ucaat2026_workshop/
 ├── setup_environment.sh       # Unified installation script
-├── start-appium.sh            # Appium server startup script with validation
-├── appium.conf.json          # Appium server configuration
-├── Dockerfile                # Docker container definition (runs setup at build time)
-├── SETUP_DOCUMENTATION.md    # This file
-├── README.md                 # Quick start guide
-└── legacy/                   # Legacy installation scripts
-    ├── install_android_sdk.sh
-    ├── install_tools.sh
-    ├── README.md
-    └── Dockerfile
+├── Dockerfile                 # Docker container definition (runs setup at build time)
+├── SETUP_DOCUMENTATION.md     # This file
+├── README.md                  # Quick start guide
+└── appium/
+    ├── start-appium.sh        # Appium server startup script with validation
+    └── appium.conf.json       # Appium server configuration
 ```
 
 ---
@@ -318,9 +314,9 @@ source ~/.sdkman/bin/sdkman-init.sh
 ```
 
 #### Pre-flight Validation
-- **Appium availability check**: Verifies Appium is installed and accessible
-- **Driver validation**: Lists all installed drivers and specifically checks for UIAutomator2
-- **Configuration display**: Shows the contents of appium.conf.json if present
+- **Appium availability check**: Verifies Appium is installed and accessible; prints PATH diagnostics on failure
+- **Driver validation**: Lists installed drivers and specifically checks for UIAutomator2
+- **Configuration check**: Confirms ~/.appium/appium.conf.json is present before starting
 - **Error handling**: Provides detailed error messages if components are missing
 
 #### Automatic Server Startup
@@ -331,20 +327,13 @@ source ~/.sdkman/bin/sdkman-init.sh
 
 ### Script Output Example
 ```
-✓ Appium found: 3.1.0
+✔ Appium found: 3.1.0
+
 Checking installed Appium drivers...
-✓ UIAutomator2 driver is installed
-✓ Found Appium configuration file: /home/appiumuser/.appium/appium.conf.json
-Configuration contents:
-{
-  "server": {
-    "port": 4723,
-    "allow-cors": true,
-    ...
-  }
-}
---- End of configuration ---
-Starting Appium server with configuration file (auto-loaded)...
+✔ UIAutomator2 driver is installed
+✔ Appium configuration found at /home/appiumuser/.appium/appium.conf.json
+
+Starting Appium server (config auto-loaded from ~/.appium/)...
 [Appium] Welcome to Appium v3.1.0
 ```
 
@@ -423,24 +412,23 @@ WORKDIR /home/appiumuser
 ---
 
 ```dockerfile
-COPY setup_environment.sh start-appium.sh appium.conf.json ./
+COPY setup_environment.sh ./
+COPY appium/ ./appium/
 ```
 **File Copying:**
-- Copies setup script to container
-- Copies Appium startup script to container
-- Copies Appium configuration
+- Copies setup script to container root
+- Copies the `appium/` directory (contains `start-appium.sh` and `appium.conf.json`)
 - Files owned by root initially
 
 ---
 
 ```dockerfile
-RUN chmod +x setup_environment.sh start-appium.sh && \
-    chown appiumuser:appiumuser setup_environment.sh start-appium.sh appium.conf.json
+RUN chmod +x setup_environment.sh appium/start-appium.sh && \
+    chown appiumuser:appiumuser setup_environment.sh appium/
 ```
 **Permissions:**
 - Makes both scripts executable
-- Changes ownership to appiumuser
-- Ensures user can read config file
+- Changes ownership of the setup script and appium directory to appiumuser
 
 ---
 
@@ -496,7 +484,7 @@ ENV PATH="${NVM_DIR}/versions/node/$(ls ${NVM_DIR}/versions/node 2>/dev/null | h
 ---
 
 ```dockerfile
-CMD ["./start-appium.sh"]
+CMD ["./appium/start-appium.sh"]
 ```
 **Container Startup:**
 - Automatically starts Appium server on port 4723
@@ -523,7 +511,7 @@ CMD ["./start-appium.sh"]
     "plugin": {
       "devtools": {}
     },
-    "allow-insecure": ["chromedriver_autodownload", "adb_shell"],
+    "allow-insecure": ["*:chromedriver_autodownload", "*:adb_shell"],
     "relaxed-security": true,
     "driver": {
       "uiautomator2": {
@@ -557,7 +545,7 @@ CMD ["./start-appium.sh"]
 #### Security Settings
 
 ```json
-"allow-insecure": ["chromedriver_autodownload", "adb_shell"]
+"allow-insecure": ["*:chromedriver_autodownload", "*:adb_shell"]
 ```
 - **chromedriver_autodownload**: Automatically downloads matching chromedriver versions
 - **adb_shell**: Allows execution of adb shell commands through Appium
