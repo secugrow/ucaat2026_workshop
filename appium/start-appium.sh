@@ -71,6 +71,76 @@ else
     info "Driver list output: $DRIVER_LIST"
 fi
 
+# Chromedriver setup — detect Chrome version on connected devices and download
+# matching Chromedriver if not already present in Appium's internal directory.
+# This runs at container startup so it works with whatever Chrome version is
+# currently installed on the device, without hardcoding any version.
+CHROMEDRIVER_DIR="$HOME/.appium/node_modules/appium-uiautomator2-driver/node_modules/appium-chromedriver/chromedriver/linux"
+mkdir -p "$CHROMEDRIVER_DIR"
+
+section "Checking Chromedriver..."
+DEVICES=$(adb devices | grep -w device | awk '{print $1}')
+
+if [ -z "$DEVICES" ]; then
+    warn "No devices connected — skipping Chromedriver setup"
+else
+    for SERIAL in $DEVICES; do
+        CHROME_VERSION=$(adb -s "$SERIAL" shell dumpsys package com.android.chrome 2>/dev/null \
+            | grep versionName | head -1 | awk -F= '{print $2}' | tr -d '[:space:]')
+
+        if [ -z "$CHROME_VERSION" ]; then
+            warn "Could not detect Chrome version on device $SERIAL"
+            continue
+        fi
+
+        MAJOR_VERSION=$(echo "$CHROME_VERSION" | cut -d. -f1)
+        info "Device $SERIAL has Chrome $CHROME_VERSION (major: $MAJOR_VERSION)"
+
+        # Check if a compatible Chromedriver already exists
+        EXISTING=$(ls "$CHROMEDRIVER_DIR"/chromedriver-"$MAJOR_VERSION"* 2>/dev/null | head -1)
+        if [ -n "$EXISTING" ]; then
+            ok "Chromedriver for Chrome $MAJOR_VERSION already present: $EXISTING"
+            continue
+        fi
+
+        # Find the best matching Chromedriver version from Google's JSON API
+        info "Downloading Chromedriver for Chrome $CHROME_VERSION..."
+        MINOR_VERSION=$(echo "$CHROME_VERSION" | cut -d. -f1-3)
+
+        DOWNLOAD_URL=$(curl -s "https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json" \
+            | python3 -c "
+import json,sys
+data=json.load(sys.stdin)
+versions=[v for v in data['versions'] if v['version'].startswith('$MINOR_VERSION')]
+best=None
+for v in versions:
+    for d in v.get('downloads',{}).get('chromedriver',[]):
+        if d['platform']=='linux64':
+            best=d['url']
+if best:
+    print(best)
+" 2>/dev/null)
+
+        if [ -z "$DOWNLOAD_URL" ]; then
+            warn "No matching Chromedriver found for Chrome $CHROME_VERSION"
+            continue
+        fi
+
+        info "Downloading from: $DOWNLOAD_URL"
+        TMPZIP="/tmp/chromedriver-$MAJOR_VERSION.zip"
+        if wget -q "$DOWNLOAD_URL" -O "$TMPZIP"; then
+            TMPDIR=$(mktemp -d)
+            unzip -q "$TMPZIP" -d "$TMPDIR"
+            mv "$TMPDIR/chromedriver-linux64/chromedriver" "$CHROMEDRIVER_DIR/chromedriver-$MAJOR_VERSION"
+            chmod +x "$CHROMEDRIVER_DIR/chromedriver-$MAJOR_VERSION"
+            rm -rf "$TMPZIP" "$TMPDIR"
+            ok "Chromedriver $CHROME_VERSION installed as chromedriver-$MAJOR_VERSION"
+        else
+            warn "Failed to download Chromedriver for Chrome $CHROME_VERSION"
+        fi
+    done
+fi
+
 # Config file is copied to ~/.appium/ by setup_environment.sh (configure_appium step).
 # Appium auto-loads it from there — no need to pass --config explicitly.
 CONFIG_FILE="$HOME/.appium/appium.conf.json"

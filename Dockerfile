@@ -4,6 +4,7 @@ FROM ubuntu:22.04
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Update package list and install essential dependencies
+# libglib2.0-0, libnspr4, libnss3, libdbus-1-3 are required by Chromedriver
 RUN apt-get update && apt-get install -y \
     curl \
     wget \
@@ -13,6 +14,10 @@ RUN apt-get update && apt-get install -y \
     bash \
     ca-certificates \
     git \
+    libglib2.0-0 \
+    libnspr4 \
+    libnss3 \
+    libdbus-1-3 \
     && rm -rf /var/lib/apt/lists/*
 
 # Create a test user with sudo privileges
