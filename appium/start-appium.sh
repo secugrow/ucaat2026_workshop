@@ -143,7 +143,8 @@ fi
 
 # Config file is copied to ~/.appium/ by setup_environment.sh (configure_appium step).
 # Appium auto-loads it from there — no need to pass --config explicitly.
-CONFIG_FILE="$HOME/.appium/appium.conf.json"
+# CONFIG_FILE="$HOME/.appium/appium.conf.json"
+CONFIG_FILE="$HOME/.appiumrc.json"
 
 if [ -f "$CONFIG_FILE" ]; then
     ok "Appium configuration found at $CONFIG_FILE"

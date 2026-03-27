@@ -237,7 +237,8 @@ configure_appium() {
 
     if [ -n "$APPIUM_CONF_SRC" ]; then
         info "Copying $APPIUM_CONF_SRC to $APPIUM_CONFIG_DIR"
-        cp "$APPIUM_CONF_SRC" "$APPIUM_CONFIG_DIR/appium.conf.json"
+        # cp "$APPIUM_CONF_SRC" "$APPIUM_CONFIG_DIR/appium.conf.json"
+        cp "$APPIUM_CONF_SRC" "$HOME/.appiumrc.json"
 
         CHROMEDRIVER_DIR="$HOME/secugrow/chromedrivers"
         mkdir -p "$CHROMEDRIVER_DIR"
