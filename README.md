@@ -64,3 +64,4 @@ If the device is not listed, replug the USB cable and ensure it is set to **File
 | Java | 23.0.2 (Liberica) |
 | Maven | 3.9.5 |
 | Android SDK | latest cmdline-tools, platform-tools, android-33 |
+| Chromedriver | auto-downloaded at container startup based on device Chrome version |
