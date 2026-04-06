@@ -241,7 +241,8 @@ configure_appium() {
         mkdir -p "$CHROMEDRIVER_DIR"
         ok "Created chromedriver storage directory at $CHROMEDRIVER_DIR"
     else
-        warn "No .appiumrc.json found in $SCRIPT_DIR or $SCRIPT_DIR/appium/. Skipping Appium configuration."
+        error "No .appiumrc.json found in $SCRIPT_DIR or $SCRIPT_DIR/appium/ — cannot configure Appium."
+        exit 1
     fi
 }
 
@@ -404,9 +405,12 @@ configure_android_environment() {
     detect_shell_config
     info "Using shell configuration file: $SHELL_CONFIG_FILE"
 
-    if grep -q "ANDROID_SDK_ROOT=" "$SHELL_CONFIG_FILE"; then
-        warn "ANDROID_SDK_ROOT is already configured in $SHELL_CONFIG_FILE. Skipping addition."
+    if grep -q "ANDROID_SDK_ROOT=\"$ANDROID_SDK_ROOT_DIR\"" "$SHELL_CONFIG_FILE"; then
+        ok "ANDROID_SDK_ROOT already correctly configured in $SHELL_CONFIG_FILE. Skipping."
     else
+        if grep -q "ANDROID_SDK_ROOT=" "$SHELL_CONFIG_FILE"; then
+            warn "ANDROID_SDK_ROOT is set in $SHELL_CONFIG_FILE but points to a different path — appending updated value."
+        fi
         info "Adding ANDROID_SDK_ROOT and PATH modifications to $SHELL_CONFIG_FILE"
 
         # Expand all paths at write time so the shell config is self-contained
@@ -475,7 +479,7 @@ install_sdk_components() {
 
     # Accept licenses with finite printf instead of infinite yes to avoid SIGPIPE
     info "Accepting Android SDK licenses..."
-    printf 'y\n%.0s' {1..100} | "$ANDROID_CMDLINE_TOOLS/bin/sdkmanager" \
+    printf 'y\n%.0s' {1..25} | "$ANDROID_CMDLINE_TOOLS/bin/sdkmanager" \
         --sdk_root="$ANDROID_SDK_ROOT_DIR" --licenses >/dev/null 2>&1 || true
 
     LATEST_BUILD_TOOLS=$("$ANDROID_CMDLINE_TOOLS/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT_DIR" --list 2>/dev/null \
@@ -492,7 +496,7 @@ install_sdk_components() {
     fi
 
     info "Installing platform-tools, platforms;android-33 and $LATEST_BUILD_TOOLS..."
-    printf 'y\n%.0s' {1..100} | "$ANDROID_CMDLINE_TOOLS/bin/sdkmanager" \
+    printf 'y\n%.0s' {1..25} | "$ANDROID_CMDLINE_TOOLS/bin/sdkmanager" \
         --sdk_root="$ANDROID_SDK_ROOT_DIR" \
         --install "platform-tools" "platforms;android-33" "$LATEST_BUILD_TOOLS"
 

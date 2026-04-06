@@ -180,7 +180,7 @@ Appium uses [lilconfig](https://github.com/antonk52/lilconfig) to auto-discover 
 | `uiautomator2:chromedriver_autodownload` | Allows Appium to auto-download Chromedriver |
 | `uiautomator2:adb_shell` | Allows adb shell commands through Appium |
 
-**Note:** The `chromedriver-executable-dir` and `chromedriverStorageDir` settings point to a custom directory, but Chromedriver is actually downloaded by `start-appium.sh` directly into Appium's internal directory where it reliably finds it.
+**Note:** `start-appium.sh` downloads Chromedriver into this same directory at container startup. The path in the script (`CHROMEDRIVER_DIR`) and the path in this config must match — they are kept in sync manually.
 
 ⚠️ `relaxed-security` and `allow-insecure` are for testing/workshop use only.
 
@@ -203,17 +203,23 @@ Since the Chrome version on a connected device is not known at image build time,
 
 ```
 container starts
-    → adb start-server + sleep 3 (wait for device enumeration)
-    → detect Chrome version per connected device
-    → check if matching Chromedriver already present
-    → if not: query Google's known-good-versions API
-    → download and install into Appium's internal chromedriver directory
+    → adb start-server, poll up to 30s for connected devices
+    → detect Chrome version per device (tries stable → beta → dev → canary)
+    → check if matching Chromedriver already present in ~/secugrow/chromedrivers/
+    → if not: query Google's LATEST_RELEASE_<major> endpoint (plain text, no JSON parsing)
+    → construct download URL directly from the resolved patch version
+    → download, unzip, install as chromedriver-<major>
+    → print per-device readiness summary
     → start Appium server
 ```
 
-The download uses `grep`/`awk` only — no Python required. It matches on the major Chrome version and takes the latest available patch.
+No Python or `jq` required — only `curl`, `wget`, `unzip`, and standard shell tools available in the base image.
 
-The Chromedriver persists in the container between restarts. On subsequent starts, the existing binary is reused unless the Chrome version changed.
+Chrome version detection tries four package names in order: `com.android.chrome`, `com.chrome.beta`, `com.chrome.dev`, `com.chrome.canary`. The first match wins.
+
+The Chromedriver persists in `~/secugrow/chromedrivers/` between container restarts. On subsequent starts, the existing binary for that major version is reused — no re-download unless the Chrome major version changes.
+
+Appium finds the binary via `chromedriver-executable-dir` in `.appiumrc.json`, which points to the same directory. Appium probes each binary in that directory by running it with `--version` and selects the best match for the connected device's Chrome version — so the `chromedriver-<major>` naming works correctly.
 
 ### Config Discovery
 

@@ -70,9 +70,11 @@ else
 fi
 
 # Chromedriver setup — detect Chrome version on connected devices and download
-# matching Chromedriver if not already present in Appium's internal directory.
-CHROMEDRIVER_DIR="$HOME/.appium/node_modules/appium-uiautomator2-driver/node_modules/appium-chromedriver/chromedriver/linux"
+# matching Chromedriver if not already present.
+# Must match chromedriver-executable-dir in appium/.appiumrc.json
+CHROMEDRIVER_DIR="$HOME/secugrow/chromedrivers"
 mkdir -p "$CHROMEDRIVER_DIR"
+declare -A DEVICE_MAJOR
 
 section "Checking Chromedriver..."
 # Wait for adb daemon to initialize and enumerate devices.
@@ -95,15 +97,23 @@ if [ -z "$DEVICES" ]; then
     warn "No devices connected after ${ADB_TIMEOUT}s — skipping Chromedriver setup"
 else
     for SERIAL in $DEVICES; do
-        CHROME_VERSION=$(adb -s "$SERIAL" shell dumpsys package com.android.chrome 2>/dev/null \
-            | grep versionName | head -1 | awk -F= '{print $2}' | tr -d '[:space:]')
+        CHROME_VERSION=""
+        for PKG in com.android.chrome com.chrome.beta com.chrome.dev com.chrome.canary; do
+            CHROME_VERSION=$(adb -s "$SERIAL" shell dumpsys package "$PKG" 2>/dev/null \
+                | grep versionName | head -1 | awk -F= '{print $2}' | tr -d '[:space:]')
+            if [ -n "$CHROME_VERSION" ]; then
+                info "Detected Chrome from package $PKG: $CHROME_VERSION"
+                break
+            fi
+        done
 
         if [ -z "$CHROME_VERSION" ]; then
-            warn "Could not detect Chrome version on device $SERIAL"
+            warn "Could not detect Chrome version on device $SERIAL (tried stable, beta, dev, canary)"
             continue
         fi
 
         MAJOR_VERSION=$(echo "$CHROME_VERSION" | cut -d. -f1)
+        DEVICE_MAJOR[$SERIAL]=$MAJOR_VERSION
         info "Device $SERIAL has Chrome $CHROME_VERSION (major: $MAJOR_VERSION)"
 
         # Check if a compatible Chromedriver already exists
@@ -115,19 +125,17 @@ else
 
         info "Downloading Chromedriver for Chrome $CHROME_VERSION..."
 
-        # Fetch JSON and extract latest linux64 chromedriver URL for this major version
-        # Uses grep/awk only — no python required
-        VERSIONS_JSON=$(curl -s "https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json")
+        # Resolve the exact patch version via Google's plain-text endpoint, then
+        # construct the download URL directly — no JSON parsing required.
+        LATEST_PATCH=$(curl -sf "https://googlechromelabs.github.io/chrome-for-testing/LATEST_RELEASE_${MAJOR_VERSION}")
 
-        DOWNLOAD_URL=$(echo "$VERSIONS_JSON" \
-            | grep -o "https://storage.googleapis.com/chrome-for-testing-public/${MAJOR_VERSION}\.[^\"]*linux64/chromedriver[^\"]*" \
-            | tail -1)
-
-        if [ -z "$DOWNLOAD_URL" ]; then
-            warn "No matching Chromedriver found for Chrome $CHROME_VERSION on device $SERIAL"
+        if [ -z "$LATEST_PATCH" ]; then
+            warn "No Chromedriver release found for Chrome $MAJOR_VERSION on device $SERIAL"
             warn "Tests on device $SERIAL will likely fail — Chrome version may be too new or too old"
             continue
         fi
+
+        DOWNLOAD_URL="https://storage.googleapis.com/chrome-for-testing-public/${LATEST_PATCH}/linux64/chromedriver-linux64.zip"
 
         info "Downloading from: $DOWNLOAD_URL"
         TMPZIP="/tmp/chromedriver-${MAJOR_VERSION}.zip"
@@ -145,11 +153,12 @@ else
     done
 fi
 
-# Print readiness summary before starting Appium
+# Print readiness summary before starting Appium.
+# Reuses DEVICE_MAJOR collected during the download loop — no second ADB round-trip.
 section "Appium readiness summary"
 if [ -n "$DEVICES" ]; then
     for SERIAL in $DEVICES; do
-        MAJOR=$(adb -s "$SERIAL" shell dumpsys package com.android.chrome 2>/dev/null             | grep versionName | head -1 | awk -F= '{print $2}' | tr -d '[:space:]' | cut -d. -f1)
+        MAJOR=${DEVICE_MAJOR[$SERIAL]:-}
         if [ -n "$MAJOR" ] && ls "$CHROMEDRIVER_DIR"/chromedriver-"$MAJOR"* >/dev/null 2>&1; then
             ok "Device $SERIAL — Chrome $MAJOR — Chromedriver ready"
         elif [ -n "$MAJOR" ]; then
