@@ -37,7 +37,7 @@ This documentation covers the complete setup environment for the mobile testing 
 | Maven | 3.9.5 | Build automation |
 | Android SDK | Latest | Android development tools |
 | SDKMAN | Latest | Java/Maven version manager |
-| Chromedriver | Auto-detected | Downloaded at container startup based on device Chrome version |
+| Chromedriver | Auto-detected | Downloaded by `start-appium.sh` at server startup based on device Chrome version |
 
 ### Directory Structure
 
@@ -85,11 +85,13 @@ SDKMAN → Java 23 → Maven 3.9.5 → Android SDK → SDK Components
 1. The script's own directory
 2. The `appium/` subdirectory (Docker layout)
 
-It copies the found file to `$HOME/.appiumrc.json`, where Appium auto-discovers it via lilconfig at startup — no `--config` flag needed.
+It copies the found file to `$HOME/.appiumrc.json`, replacing the Docker home path `/home/appiumuser` with the actual `$HOME` (via `sed`) so the Chromedriver directory is correct on bare metal under any user. Appium auto-discovers it via lilconfig at startup — no `--config` flag needed.
 
 ### Chromedriver Setup (Bare Metal)
 
-Chromedriver is handled automatically by Appium on first session. The `.appiumrc.json` config placed in `$HOME` by `setup_environment.sh` enables `relaxed-security` and `uiautomator2:chromedriver_autodownload`, so when the first test session starts Appium detects the Chrome version on the connected device and downloads the matching Chromedriver automatically.
+The Chromedriver is provisioned by `appium/start-appium.sh`, exactly as in Docker (see [Chromedriver Auto-Download](#chromedriver-auto-download)). It detects the Chrome version on the connected devices and stores the matching binary in `~/secugrow/chromedrivers/`, which `.appiumrc.json` points to (path rewritten to your `$HOME` by `setup_environment.sh`). Start the server on bare metal with `./appium/start-appium.sh` instead of plain `appium`.
+
+If Appium is started directly (`appium`), the pre-download step is skipped. As a fallback, `setup_environment.sh` still installs a config with `relaxed-security` and `uiautomator2:chromedriver_autodownload`, so Appium downloads the matching Chromedriver when the first test session starts.
 
 ### Chromedriver Setup (Docker)
 
@@ -147,6 +149,8 @@ A stable symlink (`current-bin`) points to the NVM-managed Node.js bin directory
 
 Appium uses [lilconfig](https://github.com/antonk52/lilconfig) to auto-discover its config file. The supported filenames are `.appiumrc`, `.appiumrc.json`, `.appiumrc.yaml` etc. — **not** `appium.conf.json`. The config must be placed in `$HOME` or the working directory.
 
+The file in the repo contains the Docker paths (`/home/appiumuser/...`). `setup_environment.sh` rewrites them to the current `$HOME` when installing it, so do not copy it to `$HOME` by hand on bare metal.
+
 ```json
 {
   "server": {
@@ -199,7 +203,7 @@ Appium uses [lilconfig](https://github.com/antonk52/lilconfig) to auto-discover 
 
 ### Chromedriver Auto-Download
 
-Since the Chrome version on a connected device is not known at image build time, Chromedriver is downloaded at container startup:
+Since the Chrome version on a connected device is not known at image build time, Chromedriver is downloaded when `start-appium.sh` runs (container startup, or manually on bare metal):
 
 ```
 container starts
@@ -343,8 +347,8 @@ docker build --no-cache -t workshop-env:latest .
 | Maven | `~/.sdkman/candidates/maven/` |
 | Android SDK | `~/android_sdk/` |
 | Appium config | `~/.appiumrc.json` |
-| Chromedriver | `~/.appium/node_modules/appium-uiautomator2-driver/node_modules/appium-chromedriver/chromedriver/linux/` |
-| Chromedriver cache | `~/secugrow/chromedrivers/` |
+| Chromedriver (Appium fallback download) | `~/.appium/node_modules/appium-uiautomator2-driver/node_modules/appium-chromedriver/chromedriver/linux/` |
+| Chromedriver (pre-downloaded) | `~/secugrow/chromedrivers/` |
 
 ### Useful Commands
 

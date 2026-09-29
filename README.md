@@ -25,7 +25,7 @@ source ~/.bashrc
 
 Tools are installed to `$HOME` (NVM, SDKMAN, Android SDK). Requires sudo for system packages.
 
-Appium will auto-download the matching Chromedriver on the first test session — no manual setup needed. Make sure USB debugging is enabled on the device before starting tests.
+Start the server with `./appium/start-appium.sh`: it detects the Chrome version of the connected device(s) and downloads the matching Chromedriver before Appium starts. (If you start `appium` directly, Appium falls back to downloading it on the first test session.) Make sure USB debugging is enabled on the device before starting tests.
 
 ---
 
@@ -66,4 +66,4 @@ If the device is not listed, replug the USB cable and ensure it is set to **File
 | Java | 23.0.2 (Liberica) |
 | Maven | 3.9.5 |
 | Android SDK | latest cmdline-tools, platform-tools, android-33 |
-| Chromedriver | auto-downloaded at container startup based on device Chrome version |
+| Chromedriver | auto-downloaded by `start-appium.sh` at startup based on device Chrome version |

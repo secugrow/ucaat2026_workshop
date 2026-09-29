@@ -235,7 +235,9 @@ configure_appium() {
 
     if [ -n "$APPIUM_CONF_SRC" ]; then
         info "Copying $APPIUM_CONF_SRC to $HOME/.appiumrc.json"
-        cp "$APPIUM_CONF_SRC" "$HOME/.appiumrc.json"
+        # The source config uses /home/appiumuser (Docker user) as home; rewrite it to the
+        # actual $HOME so bare-metal installs under a different user point to the right dir.
+        sed "s|/home/appiumuser|$HOME|g" "$APPIUM_CONF_SRC" > "$HOME/.appiumrc.json"
 
         CHROMEDRIVER_DIR="$HOME/secugrow/chromedrivers"
         mkdir -p "$CHROMEDRIVER_DIR"
